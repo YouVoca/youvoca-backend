@@ -7,6 +7,7 @@ import { TranscriptsModule } from './transcripts/transcripts.module';
 import { VideosModule } from './videos/videos.module';
 import { VocabulariesModule } from './vocabularies/vocabularies.module';
 import { ReviewsModule } from './reviews/reviews.module';
+import { StatisticsModule } from './statistics/statistics.module';
 
 @Module({
   imports: [
@@ -17,6 +18,7 @@ import { ReviewsModule } from './reviews/reviews.module';
     VideosModule,
     VocabulariesModule,
     ReviewsModule,
+    StatisticsModule,
     HealthModule,
   ],
 })
