@@ -1,0 +1,182 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum TranscriptSourceType {
+  YOUTUBE
+  UPLOAD
+}
+
+enum CEFRLevel {
+  A1
+  A2
+  B1
+  B2
+  C1
+  C2
+}
+
+enum UserWordStatus {
+  KNOWN
+  UNKNOWN
+  LEARNING
+  MASTERED
+}
+
+enum ReviewResult {
+  CORRECT
+  WRONG
+  AGAIN
+  EASY
+}
+
+model User {
+  id              Int              @id @default(autoincrement())
+  email           String           @unique
+  passwordHash    String?
+  nickname        String
+  provider        String?
+  providerId      String?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  vocabularies    UserVocabulary[]
+  reviewHistories ReviewHistory[]
+
+  @@unique([provider, providerId])
+}
+
+model Video {
+  id           Int          @id @default(autoincrement())
+  youtubeUrl   String       @unique
+  title        String
+  thumbnailUrl String?
+  durationSec  Int?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  transcripts  Transcript[]
+}
+
+model Transcript {
+  id                     Int                    @id @default(autoincrement())
+  videoId                Int?
+  title                  String?
+  sourceType             TranscriptSourceType
+  language               String                 @default("en")
+  fullText               String
+  createdAt              DateTime               @default(now())
+  video                  Video?                 @relation(fields: [videoId], references: [id], onDelete: SetNull)
+  segments               TranscriptSegment[]
+  transcriptVocabularies TranscriptVocabulary[]
+
+  @@index([videoId])
+}
+
+model TranscriptSegment {
+  id                     Int                    @id @default(autoincrement())
+  transcriptId           Int
+  startSec               Float?
+  endSec                 Float?
+  text                   String
+  transcript             Transcript             @relation(fields: [transcriptId], references: [id], onDelete: Cascade)
+  transcriptVocabularies TranscriptVocabulary[]
+
+  @@index([transcriptId])
+}
+
+model Vocabulary {
+  id                     Int                    @id @default(autoincrement())
+  word                   String                 @unique
+  lemma                  String?
+  meaningKo              String
+  partOfSpeech           String?
+  difficulty             CEFRLevel?
+  coreMeaningKo          String?
+  createdAt              DateTime               @default(now())
+  updatedAt              DateTime               @updatedAt
+  meanings               WordMeaning[]
+  transcriptVocabularies TranscriptVocabulary[]
+  userVocabularies       UserVocabulary[]
+  reviewHistories        ReviewHistory[]
+
+  @@index([lemma])
+  @@index([difficulty])
+}
+
+model WordMeaning {
+  id               Int        @id @default(autoincrement())
+  vocabularyId     Int
+  meaningKo        String
+  explanationKo    String?
+  exampleSentence  String?
+  exampleMeaningKo String?
+  order            Int        @default(1)
+  vocabulary       Vocabulary @relation(fields: [vocabularyId], references: [id], onDelete: Cascade)
+
+  @@index([vocabularyId])
+}
+
+model TranscriptVocabulary {
+  id           Int                     @id @default(autoincrement())
+  transcriptId Int
+  vocabularyId Int
+  segmentId    Int?
+  sentence     String
+  sentenceKo   String?
+  startSec     Float?
+  endSec       Float?
+  transcript   Transcript              @relation(fields: [transcriptId], references: [id], onDelete: Cascade)
+  vocabulary   Vocabulary              @relation(fields: [vocabularyId], references: [id], onDelete: Cascade)
+  segment      TranscriptSegment?      @relation(fields: [segmentId], references: [id], onDelete: SetNull)
+  savedByUsers UserVocabularyExample[]
+
+  @@unique([transcriptId, vocabularyId, sentence])
+  @@index([vocabularyId])
+  @@index([segmentId])
+}
+
+model UserVocabulary {
+  id             Int                     @id @default(autoincrement())
+  userId         Int
+  vocabularyId   Int
+  status         UserWordStatus          @default(UNKNOWN)
+  memo           String?
+  reviewQueuedAt DateTime?
+  savedAt        DateTime                @default(now())
+  updatedAt      DateTime                @updatedAt
+  user           User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  vocabulary     Vocabulary              @relation(fields: [vocabularyId], references: [id], onDelete: Cascade)
+  examples       UserVocabularyExample[]
+
+  @@unique([userId, vocabularyId])
+  @@index([userId, status])
+}
+
+model UserVocabularyExample {
+  id                     Int                  @id @default(autoincrement())
+  userVocabularyId       Int
+  transcriptVocabularyId Int
+  createdAt              DateTime             @default(now())
+  userVocabulary         UserVocabulary       @relation(fields: [userVocabularyId], references: [id], onDelete: Cascade)
+  transcriptVocabulary   TranscriptVocabulary @relation(fields: [transcriptVocabularyId], references: [id], onDelete: Cascade)
+
+  @@unique([userVocabularyId, transcriptVocabularyId])
+  @@index([transcriptVocabularyId])
+}
+
+model ReviewHistory {
+  id           Int          @id @default(autoincrement())
+  userId       Int
+  vocabularyId Int
+  result       ReviewResult
+  reviewedAt   DateTime     @default(now())
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  vocabulary   Vocabulary   @relation(fields: [vocabularyId], references: [id], onDelete: Cascade)
+
+  @@index([userId, reviewedAt])
+  @@index([vocabularyId])
+}
