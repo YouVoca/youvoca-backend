@@ -4,6 +4,7 @@ import { AuthModule } from './auth/auth.module';
 import { HealthModule } from './health/health.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { TranscriptsModule } from './transcripts/transcripts.module';
+import { VideosModule } from './videos/videos.module';
 
 @Module({
   imports: [
@@ -11,6 +12,7 @@ import { TranscriptsModule } from './transcripts/transcripts.module';
     PrismaModule,
     AuthModule,
     TranscriptsModule,
+    VideosModule,
     HealthModule,
   ],
 })

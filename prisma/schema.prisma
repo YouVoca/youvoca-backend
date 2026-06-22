@@ -74,6 +74,7 @@ model Transcript {
   transcriptVocabularies TranscriptVocabulary[]
 
   @@index([videoId])
+  @@unique([videoId, language, sourceType])
 }
 
 model TranscriptSegment {
