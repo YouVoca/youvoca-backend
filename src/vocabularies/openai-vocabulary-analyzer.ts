@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import OpenAI from 'openai';
 import { zodTextFormat } from 'openai/helpers/zod';
 import { z } from 'zod';
+import { VOCABULARY_ANALYSIS_SYSTEM_PROMPT } from './prompts/vocabulary-analysis.prompt';
 
 const cefrLevel = z.enum(['A1', 'A2', 'B1', 'B2', 'C1', 'C2']);
 
@@ -60,8 +61,7 @@ export class OpenAiVocabularyAnalyzer {
       input: [
         {
           role: 'system',
-          content:
-            'You are an English vocabulary teacher for Korean learners. Extract only useful vocabulary and expressions from the supplied transcript. Preserve a source segment id when one is provided. Meanings, explanations, and sentence translations must be natural Korean. Do not return duplicate lemmas.',
+          content: VOCABULARY_ANALYSIS_SYSTEM_PROMPT,
         },
         {
           role: 'user',

@@ -1,5 +1,9 @@
 import { NotFoundException } from '@nestjs/common';
-import { CEFRLevel, TranscriptSourceType } from '@prisma/client';
+import {
+  CEFRLevel,
+  TranscriptSourceType,
+  UserWordStatus,
+} from '@prisma/client';
 import type { PrismaService } from '../prisma/prisma.service';
 import type { OpenAiVocabularyAnalyzer } from './openai-vocabulary-analyzer';
 import { VocabulariesService } from './vocabularies.service';
@@ -8,11 +12,19 @@ describe('VocabulariesService', () => {
   const tx = {
     vocabulary: { upsert: jest.fn() },
     wordMeaning: { deleteMany: jest.fn(), createMany: jest.fn() },
-    transcriptVocabulary: { upsert: jest.fn() },
+    transcriptVocabulary: { upsert: jest.fn(), findUnique: jest.fn() },
+    userVocabulary: { upsert: jest.fn() },
+    userVocabularyExample: { upsert: jest.fn() },
   };
   const prismaMock = {
     transcript: { findUnique: jest.fn() },
-    userVocabulary: { findMany: jest.fn() },
+    vocabulary: { findUnique: jest.fn() },
+    userVocabulary: {
+      findMany: jest.fn(),
+      findUnique: jest.fn(),
+      findFirst: jest.fn(),
+      update: jest.fn(),
+    },
     $transaction: jest.fn((callback) => callback(tx)),
   };
   const analyzerMock = { analyze: jest.fn() };
@@ -130,5 +142,53 @@ describe('VocabulariesService', () => {
     );
     expect(result.transcriptId).toBe(10);
     expect(result.words).toHaveLength(1);
+  });
+
+  it('이미 저장된 단어에는 새 등장 문장만 중복 없이 연결한다', async () => {
+    const savedAt = new Date();
+    prismaMock.vocabulary.findUnique.mockResolvedValue({ id: 3 });
+    prismaMock.userVocabulary.findUnique.mockResolvedValue({
+      id: 5,
+      userId: 1,
+      vocabularyId: 3,
+    });
+    tx.userVocabulary.upsert.mockResolvedValue({
+      id: 5,
+      userId: 1,
+      vocabularyId: 3,
+      status: UserWordStatus.UNKNOWN,
+      memo: null,
+      reviewQueuedAt: null,
+      savedAt,
+      updatedAt: savedAt,
+    });
+    tx.transcriptVocabulary.findUnique.mockResolvedValue({
+      id: 20,
+      vocabularyId: 3,
+    });
+    tx.userVocabularyExample.upsert.mockResolvedValue({
+      id: 8,
+      userVocabularyId: 5,
+      transcriptVocabularyId: 20,
+      createdAt: savedAt,
+      transcriptVocabulary: { id: 20 },
+    });
+
+    const result = await service.saveForUser(1, {
+      vocabularyId: 3,
+      transcriptVocabularyId: 20,
+    });
+
+    expect(result.alreadySaved).toBe(true);
+    expect(tx.userVocabularyExample.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          userVocabularyId_transcriptVocabularyId: {
+            userVocabularyId: 5,
+            transcriptVocabularyId: 20,
+          },
+        },
+      }),
+    );
   });
 });
