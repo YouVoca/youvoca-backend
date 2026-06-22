@@ -26,6 +26,7 @@ npm run build
 헬스 체크 엔드포인트: `GET /api/health`
 
 로컬 PostgreSQL은 Docker의 `postgres:17-alpine` 이미지를 사용하며 데이터는
-`youvoca-postgres-data` 볼륨에 유지됩니다.
+`youvoca-postgres-data` 볼륨에 유지됩니다. 기존 로컬 PostgreSQL과 충돌하지
+않도록 호스트에서는 `localhost:5433`으로 연결합니다.
 
 전체 구현 순서는 [DEVELOPMENT_PLAN.md](./DEVELOPMENT_PLAN.md)를 참고하세요.
