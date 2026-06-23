@@ -9,11 +9,29 @@ let cachedServer: ((req: IncomingMessage, res: ServerResponse) => void) | null =
 
 function configureApp(app: INestApplication) {
   const config = app.get(ConfigService);
-  const frontendUrl = config.get<string>('FRONTEND_URL');
+  const allowedOrigins = [
+    ...config.get<string>('FRONTEND_URLS', '').split(','),
+    config.get<string>('FRONTEND_URL', ''),
+    'http://localhost:3000',
+  ]
+    .map((origin) => origin.trim().replace(/\/+$/, ''))
+    .filter(Boolean);
 
   app.setGlobalPrefix('api');
   app.enableCors({
-    origin: frontendUrl ?? true,
+    origin(
+      origin: string | undefined,
+      callback: (error: Error | null, allow?: boolean) => void,
+    ) {
+      const normalizedOrigin = origin?.replace(/\/+$/, '');
+
+      if (!normalizedOrigin || allowedOrigins.includes(normalizedOrigin)) {
+        callback(null, true);
+        return;
+      }
+
+      callback(new Error(`Origin ${origin} is not allowed by CORS`));
+    },
     credentials: true,
   });
   app.useGlobalPipes(
