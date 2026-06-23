@@ -77,7 +77,6 @@ export class OpenAiVocabularyAnalyzer {
       return await client.responses.parse({
         model,
         store: false,
-        reasoning: { effort: 'low' },
         input: [
           {
             role: 'system',
