@@ -26,6 +26,7 @@ export class VideosService {
     if (existing) return this.toResponse(existing.video!, existing);
 
     const result = await this.youtube.fetch(videoId, language);
+    const transcriptLanguage = result.language;
     const thumbnail = [...result.videoDetails.thumbnails].sort(
       (a, b) => b.width - a.width,
     )[0]?.url;
@@ -50,7 +51,7 @@ export class VideosService {
           videoId: video.id,
           title: result.videoDetails.title,
           sourceType: TranscriptSourceType.YOUTUBE,
-          language,
+          language: transcriptLanguage,
           fullText: result.segments.map((segment) => segment.text).join(' '),
           segments: {
             create: result.segments.map((segment) => ({
