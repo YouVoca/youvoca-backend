@@ -7,6 +7,7 @@
   "scripts": {
     "build": "nest build",
     "format": "prettier --write \"src/**/*.ts\"",
+    "postinstall": "prisma generate",
     "start": "nest start",
     "dev": "nest start --watch",
     "start:prod": "node dist/main",
