@@ -35,6 +35,8 @@ const vocabularyAnalysisSchema = z.object({
 
 export type VocabularyAnalysis = z.infer<typeof vocabularyAnalysisSchema>;
 
+const DEFAULT_OPENAI_MODEL = 'gpt-4.1-mini';
+
 type AnalyzeInput = {
   targetLevel: string;
   knownWords: string[];
@@ -54,30 +56,9 @@ export class OpenAiVocabularyAnalyzer {
     }
 
     const client = new OpenAI({ apiKey });
-    const response = await client.responses.parse({
-      model: this.config.get<string>('OPENAI_MODEL', 'gpt-5.5'),
-      store: false,
-      reasoning: { effort: 'low' },
-      input: [
-        {
-          role: 'system',
-          content: VOCABULARY_ANALYSIS_SYSTEM_PROMPT,
-        },
-        {
-          role: 'user',
-          content: [
-            `Target CEFR level: ${input.targetLevel}`,
-            `Words to exclude: ${input.knownWords.length ? input.knownWords.join(', ') : '(none)'}`,
-            'Transcript:',
-            input.transcript,
-          ].join('\n\n'),
-        },
-      ],
-      text: {
-        verbosity: 'low',
-        format: zodTextFormat(vocabularyAnalysisSchema, 'vocabulary_analysis'),
-      },
-    });
+    const model =
+      this.config.get<string>('OPENAI_MODEL')?.trim() || DEFAULT_OPENAI_MODEL;
+    const response = await this.parseWithOpenAi(client, model, input);
 
     if (!response.output_parsed) {
       throw new ServiceUnavailableException(
@@ -85,5 +66,46 @@ export class OpenAiVocabularyAnalyzer {
       );
     }
     return response.output_parsed;
+  }
+
+  private async parseWithOpenAi(
+    client: OpenAI,
+    model: string,
+    input: AnalyzeInput,
+  ) {
+    try {
+      return await client.responses.parse({
+        model,
+        store: false,
+        reasoning: { effort: 'low' },
+        input: [
+          {
+            role: 'system',
+            content: VOCABULARY_ANALYSIS_SYSTEM_PROMPT,
+          },
+          {
+            role: 'user',
+            content: [
+              `Target CEFR level: ${input.targetLevel}`,
+              `Words to exclude: ${input.knownWords.length ? input.knownWords.join(', ') : '(none)'}`,
+              'Transcript:',
+              input.transcript,
+            ].join('\n\n'),
+          },
+        ],
+        text: {
+          verbosity: 'low',
+          format: zodTextFormat(
+            vocabularyAnalysisSchema,
+            'vocabulary_analysis',
+          ),
+        },
+      });
+    } catch (error) {
+      throw new ServiceUnavailableException(
+        `OpenAI 단어 분석 요청에 실패했습니다. 모델(${model})과 OPENAI_API_KEY 설정을 확인해 주세요.`,
+        { cause: error },
+      );
+    }
   }
 }
