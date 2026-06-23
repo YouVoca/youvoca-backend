@@ -1,5 +1,6 @@
 import {
   IsArray,
+  IsInt,
   IsNumber,
   IsOptional,
   IsString,
@@ -44,4 +45,25 @@ export class UploadTranscriptDto {
   @ValidateNested({ each: true })
   @Type(() => TranscriptSegmentDto)
   segments?: TranscriptSegmentDto[];
+}
+
+export class UploadYoutubeTranscriptDto extends UploadTranscriptDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(2048)
+  youtubeUrl?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(11)
+  videoId?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(2048)
+  thumbnailUrl?: string;
+
+  @IsOptional()
+  @IsInt()
+  durationSec?: number;
 }

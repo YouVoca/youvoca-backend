@@ -1,7 +1,14 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { TranscriptSourceType } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
-import { UploadTranscriptDto } from './dto/upload-transcript.dto';
+import {
+  UploadTranscriptDto,
+  UploadYoutubeTranscriptDto,
+} from './dto/upload-transcript.dto';
 
 @Injectable()
 export class TranscriptsService {
@@ -37,6 +44,82 @@ export class TranscriptsService {
     };
   }
 
+  async uploadYoutube(dto: UploadYoutubeTranscriptDto) {
+    const videoId = this.resolveVideoId(dto);
+    const youtubeUrl = `https://www.youtube.com/watch?v=${videoId}`;
+    const language = this.normalizeLanguage(dto.language);
+    const title = dto.title.trim();
+    const fullText = dto.fullText.trim();
+    const segments = this.normalizeSegments(dto);
+
+    const saved = await this.prisma.$transaction(async (tx) => {
+      const video = await tx.video.upsert({
+        where: { youtubeUrl },
+        update: {
+          title,
+          thumbnailUrl: dto.thumbnailUrl?.trim() || null,
+          durationSec: dto.durationSec,
+        },
+        create: {
+          youtubeUrl,
+          title,
+          thumbnailUrl: dto.thumbnailUrl?.trim() || null,
+          durationSec: dto.durationSec,
+        },
+      });
+
+      const existing = await tx.transcript.findUnique({
+        where: {
+          videoId_language_sourceType: {
+            videoId: video.id,
+            language,
+            sourceType: TranscriptSourceType.YOUTUBE,
+          },
+        },
+        select: { id: true },
+      });
+
+      if (existing) {
+        await tx.transcriptSegment.deleteMany({
+          where: { transcriptId: existing.id },
+        });
+      }
+
+      const transcript = await tx.transcript.upsert({
+        where: {
+          videoId_language_sourceType: {
+            videoId: video.id,
+            language,
+            sourceType: TranscriptSourceType.YOUTUBE,
+          },
+        },
+        update: {
+          title,
+          fullText,
+          segments: segments.length ? { create: segments } : undefined,
+        },
+        create: {
+          videoId: video.id,
+          title,
+          language,
+          sourceType: TranscriptSourceType.YOUTUBE,
+          fullText,
+          segments: segments.length ? { create: segments } : undefined,
+        },
+        include: {
+          segments: { orderBy: [{ startSec: 'asc' }, { id: 'asc' }] },
+        },
+      });
+
+      return { video, transcript };
+    });
+
+    return {
+      video: saved.video,
+      transcript: saved.transcript,
+    };
+  }
+
   async findOne(id: number) {
     const transcript = await this.prisma.transcript.findUnique({
       where: { id },
@@ -47,5 +130,54 @@ export class TranscriptsService {
     });
     if (!transcript) throw new NotFoundException('대본을 찾을 수 없습니다.');
     return transcript;
+  }
+
+  private resolveVideoId(dto: UploadYoutubeTranscriptDto) {
+    const fromId = dto.videoId?.trim();
+    if (fromId) {
+      if (/^[\w-]{11}$/.test(fromId)) return fromId;
+      throw new BadRequestException('유효하지 않은 YouTube 영상 ID입니다.');
+    }
+
+    const fromUrl = dto.youtubeUrl?.trim();
+    if (!fromUrl) {
+      throw new BadRequestException('YouTube URL 또는 영상 ID가 필요합니다.');
+    }
+
+    try {
+      const normalized = fromUrl.match(/^https?:\/\//i)
+        ? fromUrl
+        : `https://${fromUrl}`;
+      const url = new URL(normalized);
+      const host = url.hostname.replace(/^www\./, '');
+      let id: string | null = null;
+
+      if (host === 'youtu.be') id = url.pathname.split('/')[1] ?? null;
+      if (host === 'youtube.com' || host === 'm.youtube.com') {
+        id = url.searchParams.get('v');
+        if (!id) {
+          id = url.pathname.match(/^\/(?:shorts|embed)\/([^/?]+)/)?.[1] ?? null;
+        }
+      }
+
+      if (!id || !/^[\w-]{11}$/.test(id)) throw new Error('invalid');
+      return id;
+    } catch {
+      throw new BadRequestException('유효하지 않은 YouTube URL입니다.');
+    }
+  }
+
+  private normalizeLanguage(language = 'en') {
+    return language.trim().toLowerCase() || 'en';
+  }
+
+  private normalizeSegments(dto: UploadTranscriptDto) {
+    return (
+      dto.segments?.map((segment) => ({
+        startSec: segment.startSec,
+        endSec: segment.endSec,
+        text: segment.text.trim(),
+      })) ?? []
+    );
   }
 }

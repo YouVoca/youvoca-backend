@@ -8,7 +8,10 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { UploadTranscriptDto } from './dto/upload-transcript.dto';
+import {
+  UploadTranscriptDto,
+  UploadYoutubeTranscriptDto,
+} from './dto/upload-transcript.dto';
 import { TranscriptsService } from './transcripts.service';
 
 @Controller('transcripts')
@@ -19,6 +22,11 @@ export class TranscriptsController {
   @Post('upload')
   upload(@Body() dto: UploadTranscriptDto) {
     return this.transcriptsService.upload(dto);
+  }
+
+  @Post('youtube')
+  uploadYoutube(@Body() dto: UploadYoutubeTranscriptDto) {
+    return this.transcriptsService.uploadYoutube(dto);
   }
 
   @Get(':transcriptId')

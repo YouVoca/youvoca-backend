@@ -11,6 +11,7 @@ function configureApp(app: INestApplication) {
   const config = app.get(ConfigService);
   const allowedOrigins = [
     ...config.get<string>('FRONTEND_URLS', '').split(','),
+    ...config.get<string>('EXTENSION_ORIGINS', '').split(','),
     config.get<string>('FRONTEND_URL', ''),
     'http://localhost:3000',
   ]
@@ -25,12 +26,16 @@ function configureApp(app: INestApplication) {
     ) {
       const normalizedOrigin = origin?.replace(/\/+$/, '');
 
-      if (!normalizedOrigin || allowedOrigins.includes(normalizedOrigin)) {
+      if (
+        !normalizedOrigin ||
+        allowedOrigins.includes(normalizedOrigin) ||
+        normalizedOrigin.startsWith('chrome-extension://')
+      ) {
         callback(null, true);
         return;
       }
 
-      callback(new Error(`Origin ${origin} is not allowed by CORS`));
+      callback(null, false);
     },
     credentials: true,
   });
