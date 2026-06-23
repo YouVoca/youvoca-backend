@@ -118,7 +118,11 @@ describe('YoutubeTranscriptAdapter', () => {
     expect(mockedFetchTranscript).toHaveBeenNthCalledWith(
       2,
       'dQw4w9WgXcQ',
-      expect.objectContaining({ lang: 'en-US', videoDetails: true }),
+      expect.objectContaining({
+        lang: 'en',
+        playerFetch: expect.any(Function),
+        videoDetails: true,
+      }),
     );
   });
 });

@@ -47,4 +47,40 @@ describe('VideosService', () => {
     });
     expect(youtube.fetch).not.toHaveBeenCalled();
   });
+
+  it('프로토콜이 없는 YouTube URL도 정규화해서 처리한다', async () => {
+    const existing = {
+      id: 11,
+      language: 'en',
+      fullText: 'Existing transcript',
+      video: {
+        id: 2,
+        title: 'Existing video',
+        youtubeUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+        thumbnailUrl: null,
+      },
+      segments: [],
+    };
+    transcript.findFirst.mockResolvedValue(existing);
+
+    await expect(
+      service.extractTranscript({
+        youtubeUrl: 'youtube.com/watch?v=dQw4w9WgXcQ',
+        language: 'en',
+      }),
+    ).resolves.toEqual({
+      video: existing.video,
+      transcript: existing,
+    });
+    expect(transcript.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          video: {
+            youtubeUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+          },
+        }),
+      }),
+    );
+    expect(youtube.fetch).not.toHaveBeenCalled();
+  });
 });

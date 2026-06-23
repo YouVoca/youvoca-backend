@@ -71,7 +71,10 @@ export class VideosService {
 
   private extractVideoId(value: string) {
     try {
-      const url = new URL(value);
+      const normalized = value.trim().match(/^https?:\/\//i)
+        ? value.trim()
+        : `https://${value.trim()}`;
+      const url = new URL(normalized);
       const host = url.hostname.replace(/^www\./, '');
       let id: string | null = null;
       if (host === 'youtu.be') id = url.pathname.split('/')[1] ?? null;
