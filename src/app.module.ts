@@ -6,6 +6,8 @@ import { PrismaModule } from './prisma/prisma.module';
 import { TranscriptsModule } from './transcripts/transcripts.module';
 import { VideosModule } from './videos/videos.module';
 import { VocabulariesModule } from './vocabularies/vocabularies.module';
+import { ReviewsModule } from './reviews/reviews.module';
+import { StatisticsModule } from './statistics/statistics.module';
 
 @Module({
   imports: [
@@ -15,6 +17,8 @@ import { VocabulariesModule } from './vocabularies/vocabularies.module';
     TranscriptsModule,
     VideosModule,
     VocabulariesModule,
+    ReviewsModule,
+    StatisticsModule,
     HealthModule,
   ],
 })
