@@ -5,6 +5,7 @@ import { HealthModule } from './health/health.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { TranscriptsModule } from './transcripts/transcripts.module';
 import { VideosModule } from './videos/videos.module';
+import { VocabulariesModule } from './vocabularies/vocabularies.module';
 
 @Module({
   imports: [
@@ -13,6 +14,7 @@ import { VideosModule } from './videos/videos.module';
     AuthModule,
     TranscriptsModule,
     VideosModule,
+    VocabulariesModule,
     HealthModule,
   ],
 })
