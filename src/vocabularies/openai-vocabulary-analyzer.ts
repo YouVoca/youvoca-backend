@@ -93,7 +93,7 @@ export class OpenAiVocabularyAnalyzer {
           },
         ],
         text: {
-          verbosity: 'low',
+          verbosity: 'medium',
           format: zodTextFormat(
             vocabularyAnalysisSchema,
             'vocabulary_analysis',
