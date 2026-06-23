@@ -103,9 +103,17 @@ export class OpenAiVocabularyAnalyzer {
       });
     } catch (error) {
       throw new ServiceUnavailableException(
-        `OpenAI 단어 분석 요청에 실패했습니다. 모델(${model})과 OPENAI_API_KEY 설정을 확인해 주세요.`,
+        `OpenAI 단어 분석 요청에 실패했습니다. 모델(${model})과 OPENAI_API_KEY 설정을 확인해 주세요. ${this.describeOpenAiError(error)}`,
         { cause: error },
       );
     }
+  }
+
+  private describeOpenAiError(error: unknown) {
+    if (error instanceof Error) {
+      return `${error.name}: ${error.message}`;
+    }
+
+    return String(error);
   }
 }
