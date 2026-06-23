@@ -1,7 +1,8 @@
-import { IsOptional, IsString, IsUrl, MaxLength } from 'class-validator';
+import { IsOptional, IsString, MaxLength } from 'class-validator';
 
 export class ExtractTranscriptDto {
-  @IsUrl({ protocols: ['http', 'https'], require_protocol: true })
+  @IsString()
+  @MaxLength(2048)
   youtubeUrl: string;
 
   @IsOptional()

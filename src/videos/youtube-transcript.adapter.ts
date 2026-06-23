@@ -18,15 +18,31 @@ import {
 } from 'youtube-transcript-plus';
 import type {
   CaptionTrackInfo,
+  FetchParams,
+  TranscriptConfig,
   TranscriptResult,
 } from 'youtube-transcript-plus';
 import { decode } from 'he';
 
 export type YoutubeTranscriptResult = TranscriptResult & { language: string };
 
+const TRANSCRIPT_RETRIES = 2;
+const TRANSCRIPT_RETRY_DELAY_MS = 500;
+
 @Injectable()
 export class YoutubeTranscriptAdapter {
   private readonly logger = new Logger(YoutubeTranscriptAdapter.name);
+  private readonly transcriptConfigs: TranscriptConfig[] = [
+    {
+      retries: TRANSCRIPT_RETRIES,
+      retryDelay: TRANSCRIPT_RETRY_DELAY_MS,
+    },
+    {
+      retries: TRANSCRIPT_RETRIES,
+      retryDelay: TRANSCRIPT_RETRY_DELAY_MS,
+      playerFetch: this.fetchWebPlayer.bind(this),
+    },
+  ];
 
   async fetch(
     videoId: string,
@@ -86,10 +102,7 @@ export class YoutubeTranscriptAdapter {
     videoId: string,
     requestedLanguage: string,
   ): Promise<string[]> {
-    const languages = await listLanguages(videoId, {
-      retries: 2,
-      retryDelay: 500,
-    });
+    const languages = await this.listLanguagesWithFallback(videoId);
 
     const requestedPrefix = requestedLanguage.split('-')[0];
     const candidates = [
@@ -121,23 +134,27 @@ export class YoutubeTranscriptAdapter {
     let lastError: unknown;
 
     for (const language of candidateLanguages) {
-      try {
-        return await this.fetchByLanguage(videoId, language);
-      } catch (error) {
-        lastError = error;
-        this.logger.warn(
-          `Failed to fetch YouTube transcript candidate lang=${language}: ${this.describeError(error)}`,
-        );
+      for (const config of this.transcriptConfigs) {
+        try {
+          return await this.fetchByLanguage(videoId, language, config);
+        } catch (error) {
+          lastError = error;
+          this.logger.warn(
+            `Failed to fetch YouTube transcript candidate lang=${language}: ${this.describeError(error)}`,
+          );
+        }
       }
     }
 
-    try {
-      return await this.fetchByLanguage(videoId);
-    } catch (error) {
-      lastError = error;
-      this.logger.warn(
-        `Failed to fetch YouTube transcript without language: ${this.describeError(error)}`,
-      );
+    for (const config of this.transcriptConfigs) {
+      try {
+        return await this.fetchByLanguage(videoId, undefined, config);
+      } catch (error) {
+        lastError = error;
+        this.logger.warn(
+          `Failed to fetch YouTube transcript without language: ${this.describeError(error)}`,
+        );
+      }
     }
 
     throw lastError;
@@ -146,13 +163,65 @@ export class YoutubeTranscriptAdapter {
   private fetchByLanguage(
     videoId: string,
     language?: string,
+    config: TranscriptConfig = this.transcriptConfigs[0],
   ): Promise<TranscriptResult> {
     return fetchTranscript(videoId, {
+      ...config,
       ...(language ? { lang: language } : {}),
       videoDetails: true,
-      retries: 2,
-      retryDelay: 500,
     });
+  }
+
+  private async listLanguagesWithFallback(videoId: string) {
+    let lastError: unknown;
+
+    for (const config of this.transcriptConfigs) {
+      try {
+        return await listLanguages(videoId, config);
+      } catch (error) {
+        lastError = error;
+        this.logger.warn(
+          `Failed to list YouTube caption languages: ${this.describeError(error)}`,
+        );
+      }
+    }
+
+    throw lastError;
+  }
+
+  private fetchWebPlayer(params: FetchParams): Promise<Response> {
+    const body = this.toWebPlayerBody(params.body);
+
+    return fetch(params.url, {
+      method: params.method ?? 'POST',
+      headers: {
+        ...params.headers,
+        ...(params.userAgent ? { 'User-Agent': params.userAgent } : {}),
+      },
+      body,
+      signal: params.signal,
+    });
+  }
+
+  private toWebPlayerBody(body: string | undefined) {
+    if (!body) return body;
+
+    const payload = JSON.parse(body) as {
+      context?: {
+        client?: Record<string, unknown>;
+      };
+    };
+
+    payload.context ??= {};
+    payload.context.client = {
+      ...payload.context.client,
+      clientName: 'WEB',
+      clientVersion: '2.20260622.01.00',
+      hl: 'en',
+      gl: 'US',
+    };
+
+    return JSON.stringify(payload);
   }
 
   private describeError(error: unknown) {
