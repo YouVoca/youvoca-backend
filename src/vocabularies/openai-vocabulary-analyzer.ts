@@ -41,6 +41,7 @@ type AnalyzeInput = {
   targetLevel: string;
   knownWords: string[];
   transcript: string;
+  selectedWords?: string[];
 };
 
 @Injectable()
@@ -87,6 +88,7 @@ export class OpenAiVocabularyAnalyzer {
             content: [
               `Target CEFR level: ${input.targetLevel}`,
               `Words to exclude: ${input.knownWords.length ? input.knownWords.join(', ') : '(none)'}`,
+              `User-selected words to analyze first: ${input.selectedWords?.length ? input.selectedWords.join(', ') : '(none)'}`,
               'Transcript:',
               input.transcript,
             ].join('\n\n'),

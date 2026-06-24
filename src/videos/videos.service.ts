@@ -26,6 +26,13 @@ export class VideosService {
     if (existing) return this.toResponse(existing.video!, existing);
 
     const result = await this.youtube.fetch(videoId, language);
+    const segments = this.dedupeSegments(
+      result.segments.map((segment) => ({
+        startSec: segment.offset,
+        endSec: segment.offset + segment.duration,
+        text: segment.text,
+      })),
+    );
     const transcriptLanguage = result.language;
     const thumbnail = [...result.videoDetails.thumbnails].sort(
       (a, b) => b.width - a.width,
@@ -52,13 +59,9 @@ export class VideosService {
           title: result.videoDetails.title,
           sourceType: TranscriptSourceType.YOUTUBE,
           language: transcriptLanguage,
-          fullText: result.segments.map((segment) => segment.text).join(' '),
+          fullText: segments.map((segment) => segment.text).join(' '),
           segments: {
-            create: result.segments.map((segment) => ({
-              startSec: segment.offset,
-              endSec: segment.offset + segment.duration,
-              text: segment.text,
-            })),
+            create: segments,
           },
         },
         include: { segments: { orderBy: { startSec: 'asc' } } },
@@ -90,6 +93,19 @@ export class VideosService {
     }
   }
 
+  private dedupeSegments<
+    T extends { startSec: number | null; endSec?: number | null; text: string },
+  >(segments: T[]) {
+    const seen = new Set<string>();
+    return segments.filter((segment) => {
+      const normalizedText = segment.text.trim().replace(/\s+/g, ' ');
+      const key = `${segment.startSec ?? 'none'}::${normalizedText}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }
+
   private toResponse(
     video: {
       id: number;
@@ -101,9 +117,19 @@ export class VideosService {
       id: number;
       language: string;
       fullText: string;
-      segments: unknown[];
+      segments: {
+        startSec: number | null;
+        endSec?: number | null;
+        text: string;
+      }[];
     },
   ) {
-    return { video, transcript };
+    return {
+      video,
+      transcript: {
+        ...transcript,
+        segments: this.dedupeSegments(transcript.segments),
+      },
+    };
   }
 }
