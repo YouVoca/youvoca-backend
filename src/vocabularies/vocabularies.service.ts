@@ -30,9 +30,10 @@ export class VocabulariesService {
     });
     if (!transcript) throw new NotFoundException('대본을 찾을 수 없습니다.');
 
+    const segments = this.dedupeSegments(transcript.segments);
     const transcriptInput = this.formatTranscript(
       transcript.fullText,
-      transcript.segments,
+      segments,
     );
     if (transcriptInput.length > 120_000) {
       throw new PayloadTooLargeException(
@@ -62,10 +63,11 @@ export class VocabulariesService {
       targetLevel: dto.targetLevel,
       knownWords: excluded,
       transcript: transcriptInput,
+      selectedWords: this.normalizeSelectedWords(dto.selectedWords),
     });
 
     const segmentMap = new Map(
-      transcript.segments.map((segment) => [segment.id, segment]),
+      segments.map((segment) => [segment.id, segment]),
     );
     const words = await this.prisma.$transaction(async (tx) => {
       const saved = [];
@@ -334,5 +336,24 @@ export class VocabulariesService {
           `<segment id="${segment.id}" start="${segment.startSec ?? ''}" end="${segment.endSec ?? ''}">${segment.text}</segment>`,
       )
       .join('\n');
+  }
+
+  private dedupeSegments(segments: TranscriptSegment[]) {
+    const seen = new Set<string>();
+    return segments.filter((segment) => {
+      const normalizedText = segment.text.trim().replace(/\s+/g, ' ');
+      const key = `${segment.startSec ?? 'none'}::${normalizedText}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }
+
+  private normalizeSelectedWords(selectedWords?: string[]) {
+    if (!selectedWords?.length) return undefined;
+    const words = selectedWords
+      .map((word) => word.trim().toLowerCase())
+      .filter((word) => /^[a-z][a-z'-]{0,79}$/.test(word));
+    return [...new Set(words)];
   }
 }
