@@ -1,6 +1,7 @@
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
+import { json, urlencoded } from 'express';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { AppModule } from './app.module';
 
@@ -19,6 +20,8 @@ function configureApp(app: INestApplication) {
     .filter(Boolean);
 
   app.setGlobalPrefix('api');
+  app.use(json({ limit: '2mb' }));
+  app.use(urlencoded({ extended: true, limit: '2mb' }));
   app.enableCors({
     origin(
       origin: string | undefined,
@@ -49,7 +52,7 @@ function configureApp(app: INestApplication) {
 }
 
 async function createApp() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create(AppModule, { bodyParser: false });
 
   configureApp(app);
 
