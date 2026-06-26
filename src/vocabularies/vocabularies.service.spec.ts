@@ -144,6 +144,99 @@ describe('VocabulariesService', () => {
     expect(result.words).toHaveLength(1);
   });
 
+  it('선택 단어 저장 분석은 긴 전체 대본 대신 해당 단어가 포함된 문장만 사용한다', async () => {
+    const now = new Date();
+    prismaMock.transcript.findUnique.mockResolvedValue({
+      id: 10,
+      videoId: 1,
+      title: 'Long video',
+      sourceType: TranscriptSourceType.YOUTUBE,
+      language: 'en',
+      fullText: 'x'.repeat(200_000),
+      createdAt: now,
+      segments: [
+        {
+          id: 7,
+          transcriptId: 10,
+          startSec: 12,
+          endSec: 15,
+          text: 'Stanford University sits at the center of this story.',
+        },
+        {
+          id: 8,
+          transcriptId: 10,
+          startSec: 16,
+          endSec: 19,
+          text: 'This unrelated sentence should not be sent.',
+        },
+      ],
+    });
+    prismaMock.userVocabulary.findMany.mockResolvedValue([]);
+    analyzerMock.analyze.mockResolvedValue({
+      words: [
+        {
+          word: 'Stanford',
+          lemma: 'stanford',
+          meaningKo: '스탠퍼드',
+          partOfSpeech: 'proper noun',
+          difficulty: 'B1',
+          coreMeaningKo: '대학교 이름',
+          sentence: 'Stanford University sits at the center of this story.',
+          sentenceKo: '스탠퍼드 대학교가 이 이야기의 중심에 있다.',
+          segmentId: 7,
+          startSec: null,
+          endSec: null,
+          meanings: [],
+        },
+      ],
+    });
+    tx.vocabulary.upsert.mockResolvedValue({
+      id: 3,
+      word: 'stanford',
+      lemma: 'stanford',
+      meaningKo: '스탠퍼드',
+      partOfSpeech: 'proper noun',
+      difficulty: CEFRLevel.B1,
+      coreMeaningKo: '대학교 이름',
+      createdAt: now,
+      updatedAt: now,
+    });
+    tx.wordMeaning.deleteMany.mockResolvedValue({ count: 0 });
+    tx.transcriptVocabulary.upsert.mockResolvedValue({
+      id: 20,
+      transcriptId: 10,
+      vocabularyId: 3,
+      segmentId: 7,
+      sentence: 'Stanford University sits at the center of this story.',
+      sentenceKo: '스탠퍼드 대학교가 이 이야기의 중심에 있다.',
+      startSec: 12,
+      endSec: 15,
+    });
+
+    await service.analyze(1, {
+      transcriptId: 10,
+      excludeKnownWords: false,
+      targetLevel: CEFRLevel.B1,
+      selectedWords: ['Stanford'],
+    });
+
+    expect(analyzerMock.analyze).toHaveBeenCalledWith(
+      expect.objectContaining({
+        selectedWords: ['stanford'],
+        transcript: expect.stringContaining(
+          'Stanford University sits at the center of this story.',
+        ),
+      }),
+    );
+    expect(analyzerMock.analyze).toHaveBeenCalledWith(
+      expect.objectContaining({
+        transcript: expect.not.stringContaining(
+          'This unrelated sentence should not be sent.',
+        ),
+      }),
+    );
+  });
+
   it('이미 저장된 단어에는 새 등장 문장만 중복 없이 연결한다', async () => {
     const savedAt = new Date();
     prismaMock.vocabulary.findUnique.mockResolvedValue({ id: 3 });

@@ -31,9 +31,18 @@ export class VocabulariesService {
     if (!transcript) throw new NotFoundException('대본을 찾을 수 없습니다.');
 
     const segments = this.dedupeSegments(transcript.segments);
+    const selectedWords = this.normalizeSelectedWords(dto.selectedWords);
+    const analysisSegments = selectedWords?.length
+      ? this.filterSegmentsBySelectedWords(segments, selectedWords)
+      : segments;
+    if (selectedWords?.length && !analysisSegments.length) {
+      throw new BadRequestException(
+        '선택한 단어가 포함된 대본 문장을 찾지 못했습니다.',
+      );
+    }
     const transcriptInput = this.formatTranscript(
       transcript.fullText,
-      segments,
+      analysisSegments,
     );
     if (transcriptInput.length > 120_000) {
       throw new PayloadTooLargeException(
@@ -63,7 +72,7 @@ export class VocabulariesService {
       targetLevel: dto.targetLevel,
       knownWords: excluded,
       transcript: transcriptInput,
-      selectedWords: this.normalizeSelectedWords(dto.selectedWords),
+      selectedWords,
     });
 
     const segmentMap = new Map(
@@ -355,5 +364,37 @@ export class VocabulariesService {
       .map((word) => word.trim().toLowerCase())
       .filter((word) => /^[a-z][a-z'-]{0,79}$/.test(word));
     return [...new Set(words)];
+  }
+
+  private filterSegmentsBySelectedWords(
+    segments: TranscriptSegment[],
+    selectedWords: string[],
+  ) {
+    const matchers = selectedWords.map((word) => ({
+      word,
+      pattern: new RegExp(`(^|[^a-z])${this.escapeRegExp(word)}([^a-z]|$)`, 'i'),
+      count: 0,
+    }));
+    const filtered: TranscriptSegment[] = [];
+    let totalLength = 0;
+
+    for (const segment of segments) {
+      const matcher = matchers.find(
+        (candidate) =>
+          candidate.count < 20 && candidate.pattern.test(segment.text),
+      );
+      if (!matcher) continue;
+
+      filtered.push(segment);
+      matcher.count += 1;
+      totalLength += segment.text.length;
+      if (totalLength > 90_000) break;
+    }
+
+    return filtered;
+  }
+
+  private escapeRegExp(value: string) {
+    return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   }
 }
