@@ -120,7 +120,30 @@ export class TranscriptsService {
     };
   }
 
-  async findOne(id: number) {
+  async findSaved(userId: number) {
+    const items = await this.prisma.savedTranscript.findMany({
+      where: { userId },
+      orderBy: { savedAt: 'desc' },
+      include: {
+        transcript: {
+          include: {
+            video: true,
+            segments: { orderBy: [{ startSec: 'asc' }, { id: 'asc' }] },
+          },
+        },
+      },
+    });
+
+    return {
+      items: items.map((item) => ({
+        id: item.id,
+        savedAt: item.savedAt,
+        transcript: item.transcript,
+      })),
+    };
+  }
+
+  async findOne(id: number, userId?: number) {
     const transcript = await this.prisma.transcript.findUnique({
       where: { id },
       include: {
@@ -129,7 +152,38 @@ export class TranscriptsService {
       },
     });
     if (!transcript) throw new NotFoundException('대본을 찾을 수 없습니다.');
-    return transcript;
+    if (!userId) return transcript;
+
+    const saved = await this.prisma.savedTranscript.findUnique({
+      where: { userId_transcriptId: { userId, transcriptId: id } },
+      select: { id: true },
+    });
+    return { ...transcript, isSaved: Boolean(saved) };
+  }
+
+  async save(userId: number, transcriptId: number) {
+    await this.ensureTranscriptExists(transcriptId);
+    const saved = await this.prisma.savedTranscript.upsert({
+      where: { userId_transcriptId: { userId, transcriptId } },
+      update: {},
+      create: { userId, transcriptId },
+    });
+    return { saved: true, savedAt: saved.savedAt };
+  }
+
+  async deleteSaved(userId: number, transcriptId: number) {
+    await this.prisma.savedTranscript.deleteMany({
+      where: { userId, transcriptId },
+    });
+    return { saved: false };
+  }
+
+  private async ensureTranscriptExists(transcriptId: number) {
+    const transcript = await this.prisma.transcript.findUnique({
+      where: { id: transcriptId },
+      select: { id: true },
+    });
+    if (!transcript) throw new NotFoundException('대본을 찾을 수 없습니다.');
   }
 
   private resolveVideoId(dto: UploadYoutubeTranscriptDto) {
