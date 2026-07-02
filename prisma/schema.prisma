@@ -46,6 +46,7 @@ model User {
   updatedAt       DateTime         @updatedAt
   vocabularies    UserVocabulary[]
   reviewHistories ReviewHistory[]
+  savedTranscripts SavedTranscript[]
 
   @@unique([provider, providerId])
 }
@@ -72,9 +73,23 @@ model Transcript {
   video                  Video?                 @relation(fields: [videoId], references: [id], onDelete: SetNull)
   segments               TranscriptSegment[]
   transcriptVocabularies TranscriptVocabulary[]
+  savedByUsers           SavedTranscript[]
 
   @@index([videoId])
   @@unique([videoId, language, sourceType])
+}
+
+model SavedTranscript {
+  id           Int        @id @default(autoincrement())
+  userId       Int
+  transcriptId Int
+  savedAt      DateTime   @default(now())
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transcript   Transcript @relation(fields: [transcriptId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, transcriptId])
+  @@index([userId, savedAt])
+  @@index([transcriptId])
 }
 
 model TranscriptSegment {
